@@ -1,0 +1,74 @@
+#!/usr/bin/python
+from urllib2 import urlopen
+
+#This is a basic wrapper that calls the API 
+def SendSBIGCommand(command):
+
+    #The default hostname for the camera.
+    campath = 'http://f9sbig.mmto.arizona.edu/'
+    campath = campath + 'api/' # Just for ease later
+
+    #Send the HTTP API request
+    request = urlopen(campath + command)
+
+    return request
+
+
+#This program will download the last image taken by the
+#SBIG camera
+def DownloadImage(outname):
+
+    #This is the default test image name (if one is not provided)
+    if not outname:
+        outname = 'sbig_test.fits'
+
+    #Down the image
+    imagedata = SendSBIGCommand("Imager.FIT")
+    f = open(outname, "wb")
+    f.write(imagedata.read())
+    f.close()
+
+#Expose an image
+#Inputs -- expTime : exposure time in seconds
+#          imType : integer (0 = Dark, 1 = Light, 2=Bias, 3=Flat Field)
+def ExposeImage(expTime, imType):
+  
+    req = SendSBIGCommand("ImagerStartExposure.cgi?Duration=%.2f&FrameType=%d" % (expTime, imType))
+    err_code = req.read()
+    
+    print("Starting Exposure.")
+    ImagerState = -1
+    PostedReadOut = 0
+    while (ImagerState != 0) and (ImagerState != 5):
+        req = SendSBIGCommand("ImagerState.cgi")
+        if req:
+            ImagerState = int(req.read())
+            
+        if (ImagerState == 3) and (PostedReadOut == 0):
+            print("Reading out") 
+            PostedReadOut = 1
+
+    #ImagerState = 5 is an error mode
+    if (ImagerState == 5):
+        print("Imager State Error.")
+        return
+    
+#Turn on cooling
+def EnableCooling():
+    
+    req = SendSBIGCommand("ImagerSetSettings.cgi?CoolerState=1&CCDTemperatureSetpoint=25&FanState=2")
+    
+
+#Turn off cooling
+def DisableCooling():
+    req = SendSBIGCommand("ImagerSetSettings.cgi?CoolerState=0")
+    
+    
+             
+#EnableCooling()
+DisableCooling()
+ExposeImage(0, 2)
+DownloadImage("junk.fits")
+    
+
+    
